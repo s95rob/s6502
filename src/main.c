@@ -7,8 +7,8 @@ int main(int argc, char** argv) {
     cpu_t* cpu = cpu_create(bus);
 
     u32 word = 0xa9ff0000; // LDA #255
-    instruction_t inst = instruction_decode(word);
-    cpu_exec(cpu, &inst);
+    cpu_instruction_t inst = cpu_decode(cpu, word);
+    cpu_exec(cpu, inst);
 
     cpu_free(cpu);
     bus_free(bus);

@@ -25,9 +25,9 @@ b8 bus_attach_pci(bus_t* bus, pci_t* pci, u16 addr_start, u16 addr_end);
 // Attempts to load an 8-bit unsigned value from the address bus
 // @param[in] bus Address bus instance
 // @param[in] addr Where to load the value from on the bus
-// @param[out] value Where to load the value
+// @param[out] load Where to load the value
 // @returns True on success, false on failure 
-b8 bus_load(bus_t* bus, u16 addr, u8* value);
+b8 bus_load(bus_t* bus, u16 addr, u8* load);
 
 // Attempts to store an 8-bit unsigned value to the address bus
 // @param[in] bus Address bus instance
