@@ -1,4 +1,3 @@
-#pragma once
 #include "interval_tree.h"
 
 #include <assert.h>

@@ -148,6 +148,7 @@ cpu_instruction_t cpu_decode(cpu_t* cpu, u32 word) {
 
 void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     u32 cycles = cpu_resolve_address(cpu, inst.info.address_mode, &inst.operand);
+    u8 m = 0;
 
     switch (inst.info.opcode) {
     case CPU_OPCODE_ADC:
@@ -155,10 +156,12 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
         break;
     case CPU_OPCODE_AND:
         CPU_ADD_CYCLES(2, 3, 4, 0, 4, 4, 4, 6, 5);
-        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
-            bus_load(cpu->bus, inst.operand, &inst.operand);
+        m = inst.operand;
 
-        cpu->a = cpu->a & inst.operand;
+        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
+            bus_load(cpu->bus, inst.operand, &m);
+
+        cpu->a = cpu->a & m;
 
         cpu_eval_zero_flag(cpu, cpu->a);
         cpu_eval_negative_flag(cpu, cpu->a);
@@ -205,7 +208,7 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     case CPU_OPCODE_BIT:
         CPU_ADD_CYCLES(0, 2, 0, 0, 4, 0, 0, 0, 0);
         u8 val;
-        bus_load(cpu, inst.operand, &val);
+        bus_load(cpu->bus, inst.operand, &val);
         cpu->status |= val & BIT(6);
         cpu->status |= val & BIT(7);
 
@@ -242,8 +245,8 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
 
         u8 ptr_lo = 0,
            ptr_hi = 0;
-        bus_load(cpu, 0xfffe, &ptr_lo);
-        bus_load(cpu, 0xffff, &ptr_hi);
+        bus_load(cpu->bus, 0xfffe, &ptr_lo);
+        bus_load(cpu->bus, 0xffff, &ptr_hi);
 
         cpu->pc = (ptr_hi << 8) + ptr_lo;
 
@@ -287,7 +290,7 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     case CPU_OPCODE_CMP:
         CPU_ADD_CYCLES(2, 3, 4, 0, 4, 4, 4, 6, 5);
 
-        u8 m = inst.operand;
+        m = inst.operand;
         if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
             bus_load(cpu->bus, inst.operand, &m);
 
@@ -298,7 +301,7 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     case CPU_OPCODE_CPX:
         CPU_ADD_CYCLES(2, 3, 0, 0, 4, 0, 0, 0, 0);
 
-        u8 m = inst.operand;
+        m = inst.operand;
         if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
             bus_load(cpu->bus, inst.operand, &m);
 
@@ -309,7 +312,7 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     case CPU_OPCODE_CPY:
         CPU_ADD_CYCLES(2, 3, 0, 0, 4, 0, 0, 0, 0);
 
-        u8 m = inst.operand;
+        m = inst.operand;
         if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
             bus_load(cpu->bus, inst.operand, &m);
 
@@ -320,10 +323,10 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
     case CPU_OPCODE_DEC:
         CPU_ADD_CYCLES(0, 5, 6, 0, 6, 7, 0, 0, 0);
 
-        u8 m = 0;
-        bus_load(cpu, inst.operand, &m);
+        m = 0;
+        bus_load(cpu->bus, inst.operand, &m);
         m -= 1;
-        bus_store(cpu, inst.operand, m);
+        bus_store(cpu->bus, inst.operand, m);
 
         cpu_eval_status(cpu, CPU_STATUS_FLAG_ZERO_BIT, m == 0);
         cpu_eval_status(cpu, CPU_STATUS_FLAG_NEGATIVE_BIT, (i8)m < 0);

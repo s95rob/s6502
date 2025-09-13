@@ -35,6 +35,6 @@ typedef u32 b32;
 // 16-bit byte swap
 // @param[in] hword Half-word to perform byteswap on
 // @returns `hword`, bytes wapped
-inline u16 bswap16(u16 hword) {
+inline static u16 bswap16(u16 hword) {
     return (u16)(((hword & 0x00ff) << 8) | ((hword & 0xff00) >> 8));
 }
