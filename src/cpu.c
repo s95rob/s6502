@@ -13,14 +13,33 @@ static const cpu_instruction_info_t g_cpu_instruction_info_table[256];
 
 // Utilities
 
-static inline void cpu_eval_zero_flag(cpu_t* cpu, u8 result) {
-    if (result == 0)
-        cpu->status |= CPU_STATUS_FLAG_ZERO_BIT;
+static inline void cpu_eval_status(cpu_t* cpu, cpu_status_flags flag, u8 result) {
+    if (result)
+        cpu->status |= flag;
+    else 
+        cpu->status &= ~flag;
 }
 
-static inline void cpu_eval_negative_flag(cpu_t* cpu, u8 result) {
-    if ((i8)result < 0)
+static inline void cpu_eval_zero_flag(cpu_t* cpu, u8 value) {
+    if (value == 0)
+        cpu->status |= CPU_STATUS_FLAG_ZERO_BIT;
+    else
+        cpu->status &= ~CPU_STATUS_FLAG_ZERO_BIT;
+}
+
+static inline void cpu_eval_negative_flag(cpu_t* cpu, u8 value) {
+    if ((i8)value < 0)
         cpu->status |= CPU_STATUS_FLAG_NEGATIVE_BIT;
+    else
+        cpu->status &= ~CPU_STATUS_FLAG_NEGATIVE_BIT;
+    
+}
+
+static inline void cpu_eval_carry_flag(cpu_t* cpu, u8 value) {
+    u8 result = value >> CPU_STATUS_CARRY_INDEX;
+    cpu->status |= (result)
+        ? CPU_STATUS_FLAG_CARRY_BIT
+        : ~CPU_STATUS_FLAG_CARRY_BIT;
 }
 
 // @returns True if the hi-byte of `b` is different than `a`
@@ -75,16 +94,17 @@ static inline u32 cpu_resolve_address(cpu_t* cpu, cpu_address_mode addr_mode, u1
     return 0;
 }
 
-#define CPU_DECL_CYCLES(imm, zp, zp_x, zp_y, abs, abs_x, abs_y, ind_x, ind_y) \
+// Add CPU cycles based on address mode cycle cost
+#define CPU_ADD_CYCLES(imm, zp, zp_x, zp_y, abs, abs_x, abs_y, ind_x, ind_y) \
     switch (inst.info.address_mode) { \
-    case CPU_ADDRESS_MODE_ZEROPAGE: cycles = zp; break; \
-    case CPU_ADDRESS_MODE_ZEROPAGE_X: cycles = zp_x; break; \
-    case CPU_ADDRESS_MODE_ZEROPAGE_Y: cycles = zp_y; break; \
-    case CPU_ADDRESS_MODE_ABSOLUTE: cycles = abs; break; \
-    case CPU_ADDRESS_MODE_ABSOLUTE_X: cycles = abs_x; break; \
-    case CPU_ADDRESS_MODE_ABSOLUTE_Y: cycles = abs_y; break; \
-    case CPU_ADDRESS_MODE_INDIRECT_X: cycles = ind_x; break; \
-    case CPU_ADDRESS_MODE_INDIRECT_Y: cycles = ind_y; break; \
+    case CPU_ADDRESS_MODE_ZEROPAGE: cycles += zp; break; \
+    case CPU_ADDRESS_MODE_ZEROPAGE_X: cycles += zp_x; break; \
+    case CPU_ADDRESS_MODE_ZEROPAGE_Y: cycles += zp_y; break; \
+    case CPU_ADDRESS_MODE_ABSOLUTE: cycles += abs; break; \
+    case CPU_ADDRESS_MODE_ABSOLUTE_X: cycles += abs_x; break; \
+    case CPU_ADDRESS_MODE_ABSOLUTE_Y: cycles += abs_y; break; \
+    case CPU_ADDRESS_MODE_INDIRECT_X: cycles += ind_x; break; \
+    case CPU_ADDRESS_MODE_INDIRECT_Y: cycles += ind_y; break; \
     default: cycles = imm; }
 
 
@@ -127,12 +147,189 @@ cpu_instruction_t cpu_decode(cpu_t* cpu, u32 word) {
 }
 
 void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
-    u32 cycles = 0;
+    u32 cycles = cpu_resolve_address(cpu, inst.info.address_mode, &inst.operand);
 
     switch (inst.info.opcode) {
+    case CPU_OPCODE_ADC:
+        // TODO
+        break;
+    case CPU_OPCODE_AND:
+        CPU_ADD_CYCLES(2, 3, 4, 0, 4, 4, 4, 6, 5);
+        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
+            bus_load(cpu->bus, inst.operand, &inst.operand);
+
+        cpu->a = cpu->a & inst.operand;
+
+        cpu_eval_zero_flag(cpu, cpu->a);
+        cpu_eval_negative_flag(cpu, cpu->a);
+        break;
+    case CPU_OPCODE_ASL:
+        CPU_ADD_CYCLES(2, 5, 6, 0, 6, 7, 0, 0, 0);
+        if (inst.info.address_mode == CPU_ADDRESS_MODE_ACCUMULATOR) {
+            cpu_eval_carry_flag(cpu, cpu->a);
+            cpu->a << 1;
+        }
+        else {
+            u8 val = 0;
+            bus_load(cpu->bus, inst.operand, &val);
+            cpu_eval_carry_flag(cpu, val);
+            val << 1;
+            bus_store(cpu->bus, inst.operand, val);
+        }
+
+        break;
+    case CPU_OPCODE_BCC:
+        cycles += 2;
+        if (!cpu->status & CPU_STATUS_FLAG_CARRY_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BCS:
+        cycles += 2;
+        if (cpu->status & CPU_STATUS_FLAG_CARRY_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BEQ:
+        cycles += 2;
+        if (cpu->status & CPU_STATUS_FLAG_ZERO_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+        
+        break;
+    case CPU_OPCODE_BIT:
+        CPU_ADD_CYCLES(0, 2, 0, 0, 4, 0, 0, 0, 0);
+        u8 val;
+        bus_load(cpu, inst.operand, &val);
+        cpu->status |= val & BIT(6);
+        cpu->status |= val & BIT(7);
+
+        cpu_eval_zero_flag(cpu, cpu->a & val);
+        break;
+    case CPU_OPCODE_BMI:
+        cycles += 2;
+        if (cpu->status & CPU_STATUS_FLAG_NEGATIVE_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BNE:
+        cycles += 2;
+        if (!(cpu->status & CPU_STATUS_FLAG_ZERO_BIT)) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BPL:
+        cycles += 2;
+        if (!(cpu->status & CPU_STATUS_FLAG_NEGATIVE_BIT)) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BRK:
+        cycles = 7;
+        cpu_push(cpu, cpu->pc);
+        cpu_push(cpu, cpu->status);
+
+        u8 ptr_lo = 0,
+           ptr_hi = 0;
+        bus_load(cpu, 0xfffe, &ptr_lo);
+        bus_load(cpu, 0xffff, &ptr_hi);
+
+        cpu->pc = (ptr_hi << 8) + ptr_lo;
+
+        break;
+    case CPU_OPCODE_BVC:
+        cycles += 2;
+        if (!cpu->status & CPU_STATUS_FLAG_OVERFLOW_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+
+        break;
+    case CPU_OPCODE_BVS:
+        cycles += 2;
+        if (cpu->status & CPU_STATUS_FLAG_OVERFLOW_BIT) {
+            cpu->pc += (i16)inst.operand;
+            cycles++;
+        }
+        
+        break;
+    case CPU_OPCODE_CLC:
+        cycles += 2;
+        cpu->status &= ~CPU_STATUS_FLAG_CARRY_BIT;
+
+        break;
+    case CPU_OPCODE_CLD:
+        cycles += 2;
+        cpu->status &= ~CPU_STATUS_FLAG_DECIMAL_BIT;
+
+        break;
+    case CPU_OPCODE_CLI:
+        cycles += 2;
+        cpu->status &= ~CPU_STATUS_FLAG_INTERRUPT_DISABLED_BIT;
+
+        break;
+    case CPU_OPCODE_CLV:
+        cycles += 2;
+        cpu->status &= ~CPU_STATUS_FLAG_OVERFLOW_BIT;
+
+        break;
+    case CPU_OPCODE_CMP:
+        CPU_ADD_CYCLES(2, 3, 4, 0, 4, 4, 4, 6, 5);
+
+        u8 m = inst.operand;
+        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
+            bus_load(cpu->bus, inst.operand, &m);
+
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_CARRY_BIT, cpu->a >= m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_ZERO_BIT, cpu->a == m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_NEGATIVE_BIT, (i8)(cpu->a - m) < 0);
+        break;
+    case CPU_OPCODE_CPX:
+        CPU_ADD_CYCLES(2, 3, 0, 0, 4, 0, 0, 0, 0);
+
+        u8 m = inst.operand;
+        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
+            bus_load(cpu->bus, inst.operand, &m);
+
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_CARRY_BIT, cpu->x >= m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_ZERO_BIT, cpu->x == m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_NEGATIVE_BIT, (i8)(cpu->x - m) < 0);
+        break;
+    case CPU_OPCODE_CPY:
+        CPU_ADD_CYCLES(2, 3, 0, 0, 4, 0, 0, 0, 0);
+
+        u8 m = inst.operand;
+        if (inst.info.address_mode != CPU_ADDRESS_MODE_IMMEDIATE)
+            bus_load(cpu->bus, inst.operand, &m);
+
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_CARRY_BIT, cpu->y >= m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_ZERO_BIT, cpu->y == m);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_NEGATIVE_BIT, (i8)(cpu->y - m) < 0);
+        break;
+    case CPU_OPCODE_DEC:
+        CPU_ADD_CYCLES(0, 5, 6, 0, 6, 7, 0, 0, 0);
+
+        u8 m = 0;
+        bus_load(cpu, inst.operand, &m);
+        m -= 1;
+        bus_store(cpu, inst.operand, m);
+
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_ZERO_BIT, m == 0);
+        cpu_eval_status(cpu, CPU_STATUS_FLAG_NEGATIVE_BIT, (i8)m < 0);
+        break;
     case CPU_OPCODE_LDA:
-        CPU_DECL_CYCLES(2, 3, 4, 0, 4, 3, 3, 2, 2);
-        cycles += cpu_resolve_address(cpu, inst.info.address_mode, &inst.operand);
+        CPU_ADD_CYCLES(2, 3, 4, 0, 4, 3, 3, 2, 2);
 
         if (inst.info.address_mode == CPU_ADDRESS_MODE_IMMEDIATE)
             cpu->a = (u8)inst.operand;
@@ -143,9 +340,8 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
         cpu_eval_negative_flag(cpu, cpu->a);
         break;
     case CPU_OPCODE_LDX:
-        CPU_DECL_CYCLES(2, 3, 0, 4, 4, 0, 4, 0, 0);
-        cycles += cpu_resolve_address(cpu, inst.info.address_mode, &inst.operand);
-
+        CPU_ADD_CYCLES(2, 3, 0, 4, 4, 0, 4, 0, 0);
+        
         if (inst.info.address_mode == CPU_ADDRESS_MODE_IMMEDIATE)
             cpu->x = (u8)inst.operand;
         else
@@ -155,9 +351,8 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
         cpu_eval_negative_flag(cpu, cpu->x);
         break;
     case CPU_OPCODE_LDY:
-        CPU_DECL_CYCLES(2, 3, 4, 0, 4, 4, 0, 0, 0);
-        cycles += cpu_resolve_address(cpu, inst.info.address_mode, &inst.operand);
-
+        CPU_ADD_CYCLES(2, 3, 4, 0, 4, 4, 0, 0, 0);
+        
         if (inst.info.address_mode == CPU_ADDRESS_MODE_IMMEDIATE)
             cpu->y = (u8)inst.operand;
         else
@@ -166,9 +361,83 @@ void cpu_exec(cpu_t* cpu, cpu_instruction_t inst) {
         cpu_eval_zero_flag(cpu, cpu->y);
         cpu_eval_negative_flag(cpu, cpu->y);
         break;
+    case CPU_OPCODE_STA:
+        CPU_ADD_CYCLES(0, 3, 4, 0, 4, 5, 5, 6, 6);
+        
+        bus_store(cpu->bus, inst.operand, cpu->a);
+
+        break;
+    case CPU_OPCODE_STX:
+        CPU_ADD_CYCLES(0, 3, 0, 4, 4, 0, 0, 0, 0);
+        
+        bus_store(cpu->bus, inst.operand, cpu->x);
+
+        break;
+    case CPU_OPCODE_STY:
+        CPU_ADD_CYCLES(0, 3, 4, 0, 4, 0, 0, 0, 0);
+        
+        bus_store(cpu->bus, inst.operand, cpu->y);
+
+        break;
+    case CPU_OPCODE_TAX:
+        cycles = 2;
+
+        cpu->x = cpu->a;
+
+        cpu_eval_zero_flag(cpu, cpu->x);
+        cpu_eval_negative_flag(cpu, cpu->x);
+        break;
+    case CPU_OPCODE_TAY:
+        cycles = 2;
+
+        cpu->y = cpu->a;
+
+        cpu_eval_zero_flag(cpu, cpu->y);
+        cpu_eval_negative_flag(cpu, cpu->y);
+        break;
+    case CPU_OPCODE_TSX:
+        cycles = 2;
+
+        cpu->x = cpu->sp;
+
+        cpu_eval_zero_flag(cpu, cpu->x);
+        cpu_eval_negative_flag(cpu, cpu->x);
+        break;
+    case CPU_OPCODE_TXA:
+        cycles = 2;
+
+        cpu->a = cpu->x;
+
+        cpu_eval_zero_flag(cpu, cpu->a);
+        cpu_eval_negative_flag(cpu, cpu->a);
+        break;
+    case CPU_OPCODE_TXS:
+        cycles = 2;
+
+        cpu->sp = cpu->x;
+
+        break;
+    case CPU_OPCODE_TYA:
+        cycles = 2;
+
+        cpu->a = cpu->y;
+
+        cpu_eval_zero_flag(cpu, cpu->a);
+        cpu_eval_negative_flag(cpu, cpu->a);
+        break;
     }
 
     cpu->cycles += cycles;
+}
+
+void cpu_push(cpu_t* cpu, u8 value) {
+    bus_store(cpu->bus, cpu->sp--, value);
+}
+
+u8 cpu_pop(cpu_t* cpu) {
+    u8 value = 0;
+    bus_load(cpu->bus, cpu->sp++, &value);
+    return value;
 }
 
 
@@ -188,7 +457,6 @@ void cpu_get_state(cpu_t* cpu, u8* a, u8* x, u8* y, u8* sp, u8* status, u16* pc,
     if (cycles != NULL)
         *cycles = cpu->cycles;
 }
-
 
 
 

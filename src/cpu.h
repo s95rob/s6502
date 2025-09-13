@@ -4,15 +4,26 @@
 // 6502 CPU state
 typedef struct cpu_s cpu_t;
 
+// 6502 CPU status bitflag indices
+typedef enum {
+    CPU_STATUS_NEGATIVE_INDEX = 0,
+    CPU_STATUS_OVERFLOW_INDEX,
+    CPU_STATUS_BREAK_INDEX,
+    CPU_STATUS_DECIMAL_INDEX,
+    CPU_STATUS_INTERRUPT_DISABLED_INDEX,
+    CPU_STATUS_ZERO_INDEX,
+    CPU_STATUS_CARRY_INDEX 
+} cpu_status_indices;
+
 // 6502 CPU status bitflags
 typedef enum {
-    CPU_STATUS_FLAG_NEGATIVE_BIT            = BIT(0),
-    CPU_STATUS_FLAG_OVERFLOW_BIT            = BIT(1),
-    CPU_STATUS_FLAG_BREAK_BIT               = BIT(2),
-    CPU_STATUS_FLAG_DECIMAL_BIT             = BIT(3),
-    CPU_STATUS_FLAG_INTERRUPT_DISABLED_BIT  = BIT(4),
-    CPU_STATUS_FLAG_ZERO_BIT                = BIT(5),
-    CPU_STATUS_FLAG_CARRY_BIT               = BIT(6)
+    CPU_STATUS_FLAG_NEGATIVE_BIT            = BIT(CPU_STATUS_NEGATIVE_INDEX),
+    CPU_STATUS_FLAG_OVERFLOW_BIT            = BIT(CPU_STATUS_OVERFLOW_INDEX),
+    CPU_STATUS_FLAG_BREAK_BIT               = BIT(CPU_STATUS_BREAK_INDEX),
+    CPU_STATUS_FLAG_DECIMAL_BIT             = BIT(CPU_STATUS_DECIMAL_INDEX),
+    CPU_STATUS_FLAG_INTERRUPT_DISABLED_BIT  = BIT(CPU_STATUS_INTERRUPT_DISABLED_INDEX),
+    CPU_STATUS_FLAG_ZERO_BIT                = BIT(CPU_STATUS_ZERO_INDEX),
+    CPU_STATUS_FLAG_CARRY_BIT               = BIT(CPU_STATUS_CARRY_INDEX)
 } cpu_status_flags;
 
 // 6502 CPU instruction opcodes
@@ -130,6 +141,10 @@ cpu_instruction_t cpu_decode(cpu_t* cpu, u32 word);
 // @param[in] cpu
 // @param[in] inst
 void cpu_exec(cpu_t* cpu, cpu_instruction_t inst);
+
+void cpu_push(cpu_t* cpu, u8 value);
+
+u8 cpu_pop(cpu_t* cpu);
 
 // Get the state of the 6502 CPU instance
 // @param[in] cpu The CPU instance to obtain state from
