@@ -1,5 +1,5 @@
-#include "cpu.h"
-#include "pci.h"
+#include "s6502/cpu.h"
+#include "s6502/pci.h"
 
 #include <stdio.h>
 

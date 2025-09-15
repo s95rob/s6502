@@ -1,5 +1,5 @@
 #pragma once
-#include "pci.h"
+#include "s6502/pci.h"
 
 // Maximum length of addressable memory
 #define BUS_ADDR_MAX 0xffff

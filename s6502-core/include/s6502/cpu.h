@@ -1,5 +1,5 @@
 #pragma once
-#include "bus.h"
+#include "s6502/bus.h"
 
 // 6502 CPU state
 typedef struct cpu_s cpu_t;

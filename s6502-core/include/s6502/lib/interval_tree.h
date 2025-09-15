@@ -1,5 +1,5 @@
 #pragma once
-#include "common.h"
+#include "s6502/common.h"
 
 // (Closed) Interval tree node
 // Nodes are ordered by domain

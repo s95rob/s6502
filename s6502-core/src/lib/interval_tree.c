@@ -1,4 +1,4 @@
-#include "interval_tree.h"
+#include "s6502/lib/interval_tree.h"
 
 #include <assert.h>
 

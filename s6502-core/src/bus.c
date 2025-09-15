@@ -1,5 +1,5 @@
-#include "bus.h"
-#include "lib/interval_tree.h"
+#include "s6502/bus.h"
+#include "s6502/lib/interval_tree.h"
 
 #define BUS_PCI_NODE_CACHE_SIZE 2
 

@@ -1,5 +1,4 @@
-#define CPU_PRIVATE_IMPLEMENTATION
-#include "cpu.h"
+#include "s6502/cpu.h"
 
 struct cpu_s {
     u8 a, x, y, sp, status;

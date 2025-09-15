@@ -1,5 +1,5 @@
 #pragma once
-#include "common.h"
+#include "s6502/common.h"
 
 typedef struct pci_s pci_t;
 
